@@ -1,16 +1,18 @@
 // This #include statement was automatically added by the Particle IDE.
 #include <captouch.h>
 
-//Arduino Pin Assignments
+//the size of the arrays (15, but goes from 0-14)
 int arraySize = 15;
+
 const int motorDown    = D3;   //H-Bridge control to make the motor go down
 const int motorUp      = D5;   //H-Bridge control to make the motor go up
 
-//Inputs
+//motorized lisder
 const int wiper        = A0;   //Position of fader relative to GND (Analog 0)
-const int touchSend    = D4;   //Send pin for Capacitance Sensing Circuit (Digital 7)
-const int touchReceive = D7;   //Receive pin for Capacitance Sensing Circuit (Digital 8)
+const int touchSend    = D4;   //Send pin for Capacitance Sensing Circuit (Digital 4)
+const int touchReceive = D7;   //Receive pin for Capacitance Sensing Circuit (Digital 7)
 
+//linear actuators
 #define PIN_SERVO (D1)
 #define PIN_SERVO2 (D2)
 #define PIN_SERVO3 (D0)
@@ -21,35 +23,46 @@ Servo myServo2;
 Servo myServo3;
 Servo myServo4;
 
-//Variables
+
 int   faderMax        = 3800;     //Value read by fader's maximum position (0-1023)
 int   faderMin        = 100;     //Value read by fader's minimum position (0-1023)
 
-int reversedMap;
-int mappedMin = 0;
-int mappedMax = 14;
+//used for singlestep();
 int millisBetweenSteps = 10000;
 int curMillis;
 int prevStepMillis;
 
-bool positionUpdated = true;
 
-
+//g controls the movement of slider/fader and linear actuator positions
 int g = 0;
+
+//for loop
 int i = 0;
 
+//it convert the position from 0-14 to fader/slider positioner
 int testArray[15];
+//array for the fader/slider
 int testArray2[15] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
 
+//for convertions
+int reversedMap;
+int mappedMin = 0;
+int mappedMax = 14;
+
+
+//for hear rate
 float personHR1[15] = {61, 67, 90, 80, 61, 61, 67, 90, 80, 61, 61, 67, 90, 80, 61};
 float personHR2[15] = {80, 89, 110, 90, 100, 80, 89, 110, 90, 100, 80, 89, 110, 90, 100};
 float personHR3[15] = {100, 107, 70, 95, 80, 100, 107, 70, 95, 80, 100, 107, 70, 95, 80};
 float personHR4[15] = {119, 97, 65, 80, 120, 119, 97, 65, 80, 120, 119, 97, 65, 80, 120};
 
+//here is the hr converted to stroke position on linear actuator
 float persone1Mapped[15];
 float persone2Mapped[15];
 float persone3Mapped[15];
 float persone4Mapped[15];
+
+
 float minHR = 60;
 float maxHR = 120;
 int mappedHR;
@@ -70,27 +83,29 @@ int startPos;
 CapTouch Touch(touchSend, touchReceive);
 
 void setup() {
-    
+    //for the slider
     pinMode (motorUp, OUTPUT);
     pinMode (motorDown, OUTPUT);
     
+    //for the linear actuator
     myServo.attach(PIN_SERVO);
     myServo2.attach(PIN_SERVO2);
     myServo3.attach(PIN_SERVO3);
     myServo4.attach(PIN_SERVO4);
     
     minstrokToSlide();
-    Particle.variable("wiperValue", position2);
-    Particle.variable("arrayPos", g);
-    Particle.variable("bool", isTouched);
+    
     //For capacitor library
     Touch.setup();
+    
     Serial.begin(9600);
     
+    //converts hr to linear actuator position
     HRtoLinearActPos(personHR1, persone1Mapped);
     HRtoLinearActPos(personHR2, persone2Mapped);
     HRtoLinearActPos(personHR3, persone3Mapped);
     HRtoLinearActPos(personHR4, persone4Mapped);
+    
     //calibrateFader();
     g = map(faderPosition(), faderMin, faderMax, mappedMin, mappedMax );
 
@@ -106,32 +121,40 @@ void loop() {
     
 }
 
+//converts the steps from 0-14 to fader position to act as the time line
 void minstrokToSlide(){
     for(m = 0; m < arraySize; m++){
         reversedMap = map(testArray2[m], mappedMin, mappedMax, faderMin, faderMax);
         testArray[m] = reversedMap;
-        //float testarray = map(testArray2[m], (float) mappedMin, (float) mappedMax, (float) slideMin, (float) slideMax);
-        //testArray2[m] = testarray;
     }
 
 }
-void isTheSliderTouched(){
-    //if the slider is not touched it will slide from side to side
 
-    if (isTouched == false) {
+//
+void isTheSliderTouched(){
     
+    //if the slider is not touched, then the slider/fader will updates its position and move the linear actuators accordingly to the slider.
+    if (isTouched == false) {
+        
+        //update fader/slider
         updateFader(testArray[g]);
+        
+        //set strok position on linear actuators
         SetStrokePerc4(persone4Mapped[g]);
         SetStrokePerc(persone1Mapped[g]);
         SetStrokePerc2(persone2Mapped[g]);
         SetStrokePerc3(persone3Mapped[g]);
-         singleStep();
         
+        //takes a step and wait
+        singleStep();
+        
+        //reset the slider when it hits 15
         if(g >= arraySize){
             g = 0;
         
         }
-            
+    
+    //if the slider is touch, the slider will not move and the position it is moved to, is the new starting point.
     }else if(isTouched == true){
         
         g = map(faderPosition(), faderMin, faderMax, mappedMin, mappedMax);
@@ -142,6 +165,7 @@ void isTheSliderTouched(){
     }
 }
 
+//updates the fader position
 void updateFader(int position) {
     if (position < analogRead(wiper) - 10 && position > faderMin && !isTouched) {
         digitalWrite(motorDown, HIGH);
@@ -158,6 +182,8 @@ void updateFader(int position) {
 
 }
 
+
+//check is the slider is touched. From captouch lib
 void touchListerner(){
     //Instead of 10 m ohm only use 100k
     CapTouch::Event touchEvent = Touch.getEvent();
@@ -171,6 +197,7 @@ void touchListerner(){
     }
 }
 
+//gets fader position
 int faderPosition() {
     int position = analogRead(wiper);
     int returnValue = 0;
@@ -187,6 +214,9 @@ int faderPosition() {
 
     return returnValue;
 }
+
+
+//converts HR to linear actuator position
 void HRtoLinearActPos(float HRarray[], float mappedArray[]){
     for(i = 0; i < arraySize; i++ ){
         float mappedValues = map(HRarray[i],  minHR,  maxHR, minStroke, maxStroke);
@@ -194,19 +224,19 @@ void HRtoLinearActPos(float HRarray[], float mappedArray[]){
     }
 }
 
-
+//ensure to pause between the steps and take a new step
 void singleStep() {
  if (curMillis - prevStepMillis >= millisBetweenSteps) {
- prevStepMillis += millisBetweenSteps;
- //digitalWrite(motorUp, LOW);
+    prevStepMillis += millisBetweenSteps;
     g++;                
  }
 }
+
+
+//pause without taking a new step
 void singleStep2() {
  if (curMillis - prevStepMillis >= millisBetweenSteps) {
- prevStepMillis += millisBetweenSteps;
- //digitalWrite(motorUp, LOW);
-                  
+        prevStepMillis += millisBetweenSteps;
  }
 }
 
