@@ -148,11 +148,16 @@ void isTheSliderTouched(){
         //takes a step and wait
         singleStep();
         
+        //this is depende on which way the fader/slider should move. Remeber to also look at singleStep() to shit g-- to g++ if the other way is chosen
+        if(g < 0){
+            g = 14;
+        }
+        /*
         //reset the slider when it hits 15
         if(g >= arraySize){
             g = 0;
         
-        }
+        }*/
     
     //if the slider is touch, the slider will not move and the position it is moved to, is the new starting point.
     }else if(isTouched == true){
@@ -228,7 +233,8 @@ void HRtoLinearActPos(float HRarray[], float mappedArray[]){
 void singleStep() {
  if (curMillis - prevStepMillis >= millisBetweenSteps) {
     prevStepMillis += millisBetweenSteps;
-    g++;                
+    //g++;
+    g--;
  }
 }
 
